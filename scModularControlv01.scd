@@ -1,3 +1,6 @@
+// Here is an example of a modular synthdef for generating DC control voltage to modular synths
+// i use this a lot with Pmonos, see examples below
+
 // Setup io & boot & add proxyspace
 (
 //SERVER and BUFFER
@@ -20,7 +23,7 @@ s.options.numOutputBusChannels = 10;
 s.options.numInputBusChannels.postln;
 "OUTs".postln;
 s.options.numOutputBusChannels.postln;
-// RME Fireface 800
+// Another example of setting audio interface in/outs with an RME Fireface 800
 // s.options.device="Fireface 800 (3EC)";
 // Fireface w/ 8 ANALOG INS activated
 // s.options.numInputBusChannels = 8;
@@ -41,9 +44,6 @@ p.makeTempoClock;
 //give proxyspace a tempo
 p.clock.tempo = 2;
 )
-
-ServerOptions.outDevices
-s.quit;
 
 // SynthDef for modular control
 (
@@ -69,8 +69,8 @@ SynthDef(\sinOut, { | freq = 440, t_trig, ch = nil, atk=0, sus=0, rel=3, amp = 0
 	freq = freq + (octave * stepsPerOctave);
 	freq = freq / stepsPerOctave;
 	Out.ar(ch, sig * envGen);
-	//Amp for audio rate modulation
-	Out.ar(ampCh, K2A.ar(Lag.kr(amp * envGen)));
+	// Amp for audio rate modulation - USE IF YOU WANT A SEPARATE ENVELOPE
+	// Out.ar(ampCh, K2A.ar(Lag.kr(amp * envGen)));
 }).add;
 )
 
@@ -78,10 +78,14 @@ Scale.directory;
 Tuning.directory;
 Scale.whole.degrees
 
-p.clock.tempo = 200/60;
+// tempo clock, change temp
+p.clock.tempo = 120/60;
 
+// one instance of dcev synthdef (modular control synth) and
+// one instance of sinOut, a virtual SC oscillator that can be used as an amped modulator
+// but is also useful for tuning the modular to
 (
-// initial values, internal in-parens vars
+// initial values, internal in-parens variables
 var fi, sp, oc;
 fi = 40; //Pseq((30..144),inf,12);
 sp = 0.51;
@@ -122,7 +126,7 @@ oc = Pseq((0..4).mirror1,inf);
 
 )
 
-//alter the state of the synth def
+//alter the state of the synth def with .set
 ~mod1.set(\octave, Pseq((0..4).mirror1,inf).asStream);
 ~def1.set(\octave, Pseq((0..3).mirror1,inf).asStream);
 ~mod1.set(\octave, 0);
@@ -135,217 +139,97 @@ oc = Pseq((0..4).mirror1,inf);
 ~def1.set(\dur, Pbjorklund2(Pseq((2..16),inf),16,inf,0).asStream*4, \atk, 0.1, \rel, 0.1, \amp, 0.5);
 
 
-
-
-~mod1.fadeTime = 5;
-~def1.fadeTime = 5;
-
-~mod1.release
-~def1.release
-~mod1.set(\calibration, 0.0171);
-
+//free the synths from the server when done
 (
 ~def1.free(2);
 ~mod1.free(5);
-//~mod3.free;
 )
 
+// clear proxyspace
 p.clear;
 
-// utilities
+//three instances of dcev synthdef (modular control synth) set to different channels
+(
 
-s.queryAllNodes;
-s.sendMsg("/n_free", ~def1);
-s.sendMsg("/n_free", 3000);
-
-
-
-var durMult = 0.3;
-
-// Modular PMONO initial values
+// Modular voice 1 initial values
 ~mod1 = Pmono(\dcev,
-	\ch,16,\ampCh,12, // rme fireface 800 adat channels
+	\ch,3,\ampCh,4, // set your cv channel and your amp channel
 	\trig, 1,
-	//\note, Pseq((23..37), inf),
-	\degree, Pseq((5..12).mirror1,inf),
-	\scale, Scale.major,
-	\dur, Pseq([0.3, 0.1, 0.5, 0.1],inf) * durMult,
-	\amp, Pseq((15..75).mirror2, inf) * 0.01, //Pseq([0.20, 0.30, 0.35], inf),
-	\atk, /*0.001,*/ Pseq([10,10,10],inf)*0.001,
-	\sus, /*0.05,*/  Pshuf([10,10,10],inf)*0.005,
-	\rel, /*0.5,*/ Pseq([10,10,10],inf)*0.005,
-	\calibration, 0.1,
-	\midiTune, -12.75,
-	\spo, 12,
-	\octave, Pshuf((1..1),inf),
-	);
-
-// Modular PMONO initial values
-~mod2 = Pmono(\dcev,
-	\ch,17,\ampCh,13, // rme fireface 800 adat channels
-	\trig, 1,
-	//\note, Pseq((23..37), inf),
-	\degree, Pseq((5..12).mirror1,inf), //5..12
-	\scale, Scale.major,
-	\dur, Pseq([0.3, 0.1, 0.5, 0.1],inf) * durMult,
+	\note, Pseq((23..37), inf),
+	// try experimenting with degree, scale and tuning in place of note
+	//\degree, Pseq((5..12).mirror1,inf), //5..12
+	//\scale, Scale.major,
+	\dur, Pseq([0.3, 0.1, 0.5, 0.1],inf) * 0.3,
 	\amp, Pseq((15..85).mirror2, inf) * 0.01, //Pseq([0.20, 0.30, 0.35], inf),
-	\atk, /*0.001,*/ Pseq([10,10,10],inf)*0.001,
-	\sus, /*0.05,*/  Pshuf([10,10,10],inf)*0.005,
-	\rel, /*0.5,*/ Pseq([10,10,10],inf)*0.005,
+	// here are set envelope values
+	// try experimenting with sequenced envelope values!
+	\atk, 0.001,
+	\sus, 0.05,
+	\rel, 0.5,
 	\calibration, 0.1,
 	\midiTune, -12.75,
 	\spo, 12,
-	\octave, Pshuf((1..1),inf),
+	\octave, Pshuf((0..4),inf),
 	);
 
-// Modular PMONO initial values
-~mod3 = Pmono(\dcev,
-	\ch,18,\ampCh,14, // rme fireface 800 adat channels
-	\trig, 1,
-	//\note, Pseq((23..37), inf),
-	\degree, Pseq((5..12).mirror1,inf),
-	\scale, Scale.major,
-	\dur, Pseq([0.3, Rest(0.1), 0.5, 0.1],inf) * durMult,
-	\amp, Pseq((25..75).mirror2, inf) * 0.01, //Pseq([0.20, 0.30, 0.35], inf),
-	\atk, /*0.001,*/ Pseq([10,10,10],inf)*0.001,
-	\sus, /*0.05,*/  Pshuf([10,10,10],inf)*0.005,
-	\rel, /*0.5,*/ Pseq([10,10,10],inf)*0.005,
-	\calibration, 0.1,
-	\midiTune, -12.75,
-	\spo, 12,
-	\octave, Pshuf((2..2),inf),
-	);
-)
-
-
-(
-// Modular PMONO initial values
-~mod1 = Pmono(\dcev,
-	\ch,16,\ampCh,12, // rme fireface 800 adat channels
-	\trig, 1,
-	//\note, Pseq((23..37), inf),
-	\degree, Pseq((3..16).mirror2,inf),
-	\scale, Scale.minor,
-	\dur, Pseq([0.3, Rest(0.9)],inf) * 0.2,
-	\amp, Pseq((35..95).mirror2, inf) * 0.01, //Pseq([0.20, 0.30, 0.35], inf),
-	\atk, /*0.001,*/ Pseq([1,2,3],inf) * 0.01,
-	\sus, /*0.05,*/  Pseq([1,2,3],inf) *0.08,
-	\rel, /*0.5,*/ Pseq([1,2,3],inf) *0.1,
-	\calibration, 0.1,
-	\midiTune, -12.75,
-	\spo, 12,
-	\octave, Pseq((1..4),inf),
-	);
-)
-
-(
-// 2 osc, over ocatves, mirrored for stereo effect
-// Modular PMONO initial values
-~mod1 = Pmono(\dcev,
-	\ch,16,\ampCh,12, // rme fireface 800 adat channels
-	\trig, 1,
-	//\note, Pseq((23..37), inf),
-	\degree, Pseq((3..16).mirror2,inf),
-	\scale, Scale.minor,
-	\dur, Pseq([0.3, Rest(0.9)],inf) * 0.19,
-	\amp, Pseq((35..85).mirror2, inf) * 0.01, //Pseq([0.20, 0.30, 0.35], inf),
-	\atk, /*0.001,*/ Pseq([1,1,1],inf) *0.001,
-	\sus, /*0.05,*/  Pseq([1,1,1],inf) *0.2,
-	\rel, /*0.5,*/ Pseq([1,1,1],inf) *0.2,
-	\calibration, 0.1,
-	\midiTune, -12.75,
-	\spo, 12,
-	\octave, Pseq((1..6),inf),
-	);
-
-
-
-// Modular PMONO initial values
+// Modular voice 2 initial values
 ~mod2 = Pmono(\dcev,
-	\ch,17,\ampCh,13, // rme fireface 800 adat channels
+	\ch,5,\ampCh,6, // set your cv channel and your amp channel
 	\trig, 1,
-	//\note, Pseq((23..37), inf),
-	\degree, Pseq((3..16).mirror2,inf),
-	\scale, Scale.minor,
-	\dur, Pseq([0.3, Rest(0.9)],inf) * 0.19,
-	\amp, Pseq((35..95).mirror2, inf) * 0.01, //Pseq([0.20, 0.30, 0.35], inf),
-	\atk, /*0.001,*/ Pseq([1,1,1],inf) *0.001,
-	\sus, /*0.05,*/  Pseq([1,1,1],inf) *0.2,
-	\rel, /*0.5,*/ Pseq([1,1,1],inf) *0.2,
+	\note, Pseq((23..37), inf),
+	// try experimenting with degree, scale and tuning in place of note
+	//\degree, Pseq((5..12).mirror1,inf), //5..12
+	//\scale, Scale.major,
+	\dur, Pseq([0.3, 0.1, 0.5, 0.1],inf) * 0.3,
+	\amp, Pseq((15..85).mirror2, inf) * 0.01, //Pseq([0.20, 0.30, 0.35], inf),
+	// here are set envelope values
+	// try experimenting with sequenced envelope values!
+	\atk, 0.001,
+	\sus, 0.05,
+	\rel, 0.5,
 	\calibration, 0.1,
 	\midiTune, -12.75,
 	\spo, 12,
-	\octave, Pseq((1..6),inf),
+	\octave, Pshuf((1..2),inf),
+	);
+
+// Modular voice 3 initial values
+~mod3 = Pmono(\dcev,
+	\ch,7,\ampCh,8, // set your cv channel and your amp channel
+	\trig, 1,
+	\note, Pseq((23..37), inf),
+	// try experimenting with degree, scale and tuning in place of note
+	//\degree, Pseq((5..12).mirror1,inf), //5..12
+	//\scale, Scale.major,
+	\dur, Pseq([0.3, 0.1, 0.5, 0.1],inf) * 0.3,
+	\amp, Pseq((15..85).mirror2, inf) * 0.01, //Pseq([0.20, 0.30, 0.35], inf),
+	// here are set envelope values
+	// try experimenting with sequenced envelope values!
+	\atk, 0.001,
+	\sus, 0.05,
+	\rel, 0.5,
+	\calibration, 0.1,
+	\midiTune, -12.75,
+	\spo, 12,
+	\octave, Pshuf((1..3),inf),
 	);
 )
 
-Scale.directory;
-Tuning.directory;
-Scale.whole.degrees
-(
-// 2 osc slow morphing pitch and env
-~mod1 = Pmono(\dcev,
-	\ch,16,\ampCh,12, // rme fireface 800 adat channels
-	\trig, 1,
-	//\note, Pseq((23..37), inf),
-	\degree, Prand((0..7),inf),
-	\scale, Scale.whole,
-	\tuning, \harmonic,
-	\dur, /*Pseq([0.3, Rest(0.9)],inf)*/ Pexprand(5.33, 9.79,inf) * 0.1,
-	\amp, Pseq((15..45).mirror2, inf) * 0.01,
-	\atk, /*0.001,*/ Prand([1,5,9],inf) * 0.1,
-	\sus, /*0.05,*/  Prand([1,10,100],inf) *0.01,
-	\rel, /*0.5,*/ Prand([1,5,9],inf) *0.1,
-	\calibration, 0.1,
-	\midiTune, -12.75,
-	\spo, 12,
-	\octave, Pseq((2..2),inf),
-	\port, Pkey(\dur) *2,
-);
-
-~mod2 = Pmono(\dcev,
-	\ch,17,\ampCh,13, // rme fireface 800 adat channels
-	\trig, 1,
-	//\note, Pseq((23..37), inf),
-	\degree, Prand((0..7),inf),
-	\scale, Scale.whole,
-	\tuning, \harmonic,
-	\dur, /*Pseq([0.3, Rest(0.9)],inf)*/ Pexprand(5.33, 9.79,inf) * 0.1,
-	\amp, Pseq((15..65).mirror2, inf) * 0.01,
-	\atk, /*0.001,*/ Prand([1,5,9],inf) * 0.1,
-	\sus, /*0.05,*/  Prand([1,10,100],inf) *0.01,
-	\rel, /*0.5,*/ Prand([1,5,9],inf) *0.1,
-	\calibration, 0.1,
-	\midiTune, -12.75,
-	\spo, 12,
-	\octave, Pseq((2..2),inf),
-	\port, Pkey(\dur) *2,
-);
-
-~mod3 = Pmono(\dcev,
-	\ch,18,\ampCh,14, // rme fireface 800 adat channels
-	\trig, 1,
-	//\note, Pseq((23..37), inf),
-	\degree, Prand((0..7),inf),
-	\scale, Scale.whole,
-	\tuning, \harmonic,
-	\dur, /*Pseq([0.3, Rest(0.9)],inf)*/ Pexprand(5.33, 9.79,inf) * 0.1,
-	\amp, Pseq((15..65).mirror2, inf) * 0.01,
-	\atk, /*0.001,*/ Prand([1,5,9],inf) * 0.1,
-	\sus, /*0.05,*/  Prand([1,10,100],inf) *0.01,
-	\rel, /*0.5,*/ Prand([1,5,9],inf) *0.1,
-	\calibration, 0.1,
-	\midiTune, -12.75,
-	\spo, 12,
-	\octave, Pseq((2..4),inf),
-	\port, Pkey(\dur) *2,
-);
-)
-
+//free the mod1, mod2 & mod3 synths
 (
 ~mod1.free;
 ~mod2.free;
 ~mod3.free;
 )
-s.quit;
 
+// clear proxyspace and quit the server when done
+(
+p.clear;
+s.quit;
+)
+
+////////// UTILITIES ////////////
+s.queryAllNodes;
+s.sendMsg("/n_free", 3000);
+
+// with <3 from JEA
