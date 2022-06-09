@@ -12,28 +12,36 @@ s.options.memSize=2.pow(20);
 //boot server
 s.boot;
 
-//list audio io devices
+// list audio io devices
 ServerOptions.devices;
+ServerOptions.inDevices;
+ServerOptions.outDevices;
 // CORM is my macOS aggregate device consisting of Audient iD4 + USBStreamer
-s.options.device = "CORM";
-s.options.outputStreamsEnabled = "1111111111";
-s.options.numInputBusChannels = 2;
-s.options.numOutputBusChannels = 10;
+// s.options.device = "CORM";
+// s.options.outputStreamsEnabled = "1111111111";
+// s.options.numInputBusChannels = 2;
+// s.options.numOutputBusChannels = 10;
+
+// built in output on macOS? comment above
+s.options.device = "Built-in";
+
+// confirm number of Ins and Outs
 "INs".postln;
 s.options.numInputBusChannels.postln;
 "OUTs".postln;
 s.options.numOutputBusChannels.postln;
-// Another example of setting audio interface in/outs with an RME Fireface 800
+
+///////////////// Here is another example with an RME Fireface 800 (which has ADAT out for ES-3)
 // s.options.device="Fireface 800 (3EC)";
-// Fireface w/ 8 ANALOG INS activated
+///////////////// Fireface w/ 8 ANALOG INS activated
 // s.options.numInputBusChannels = 8;
 // s.options.outputStreamsEnabled = "11111111";
-// Fireface w/ ADAT OUTS activated
-// 0-9=ANALOG 1-10
-// 10-11=SPDIF 1-2(11-12)
-// 12-19=ADAT OUT 1-8(13-20)
+///////////////// Fireface w/ ADAT OUTS activated
+///////////////// 0-9=ANALOG 1-10
+///////////////// 10-11=SPDIF 1-2(11-12)
+///////////////// 12-19=ADAT OUT 1-8(13-20)
 // s.options.numOutputBusChannels = 19;
-// disable SPDIF outputs
+// //////////////disable SPDIF outputs
 // s.options.outputStreamsEnabled = "11111111110011111111";
 
 //PROXYSPACE
@@ -59,7 +67,7 @@ SynthDef(\dcev, { | note=60, octave = 0, stepsPerOctave = 12, t_trig, atk=0, sus
 }).add;
 )
 
-// Sine synth or modular modulator
+// Sine synth 'virtual sc' synth which can be used as a modulator for the modular
 (
 SynthDef(\sinOut, { | freq = 440, t_trig, ch = nil, atk=0, sus=0, rel=3, amp = 0.5, ampCh = nil, dur = 1, octave = 0, stepsPerOctave = 12 |
 	var level = amp;
@@ -69,10 +77,11 @@ SynthDef(\sinOut, { | freq = 440, t_trig, ch = nil, atk=0, sus=0, rel=3, amp = 0
 	freq = freq + (octave * stepsPerOctave);
 	freq = freq / stepsPerOctave;
 	Out.ar(ch, sig * envGen);
-	// Amp for audio rate modulation - USE IF YOU WANT A SEPARATE ENVELOPE
+	// Amp for audio rate modulation - USE IF YOU WANT TO MIRROR THE ENVELOPE
 	// Out.ar(ampCh, K2A.ar(Lag.kr(amp * envGen)));
 }).add;
 )
+
 
 Scale.directory;
 Tuning.directory;
@@ -81,22 +90,20 @@ Scale.whole.degrees
 // tempo clock, change temp
 p.clock.tempo = 120/60;
 
+~out.play;
+
 // one instance of dcev synthdef (modular control synth) and
 // one instance of sinOut, a virtual SC oscillator that can be used as an amped modulator
 // but is also useful for tuning the modular to
 (
-// initial values, internal in-parens variables
-var fi, sp, oc;
-fi = 40; //Pseq((30..144),inf,12);
-sp = 0.51;
-oc = Pseq((0..4).mirror1,inf);
+// initial value Pmonos
 
 // Modular synth
-~mod1 = Pmono(\dcev,
-	\ch,6,\ampCh,2, // rme fireface 800 adat channels
+/*~mod1 = Pmono(\sinOut,
+	\ch,0, // \ampCh,nil, // dc/cv channel out and amp channel out
 	\trig, 1,
-	\note, fi,
-	\dur,sp,
+	\note, 40,
+	\dur,1,
 	\amp, 0.5,
 	\atk, 0.001,
 	\sus, 0.05,
@@ -104,27 +111,45 @@ oc = Pseq((0..4).mirror1,inf);
 	\calibration, 0.0967, //0.0074, 0.10255,
 	\midiTune, -24,
 	\stepsPerOctave, 12,
-	\octave, oc,
-);
-~mod1.play;
+	\octave, 0,
+); */
 
-// sine wave synth from sc
+// Sine wave synth from sc
 ~def1 = Pmono(\sinOut,
-	\ch, [0,7],
-	\ampCh, 3,
+	\ch, [0,1], // \ampCh, nil, // audio channel out and amp channel out option
 	\trig, 1,
-	\note,fi,
-	\dur, sp,
+	\note, 40,
+	\dur, 0.5,
 	\amp, 0.80,
 	\atk, 0.001,
 	\sus, 0.05,
 	\rel, 0.4,
 	\stepsPerOctave, 12,
-	\octave, oc,
+	\octave, 0,
 );
-~def1.play;
 
 )
+
+(
+// variables for tuning modular to sc virtual sin oscillator
+~baseNote = 40;
+~speed = 1;
+~steps = 12;
+~octTune = {Pseq((1..2),inf).asStream};
+)
+
+(
+~def1.set(\note, ~baseNote, \dur, ~speed, \stepsPerOctave, ~steps, \octave, ~octTune);
+)
+
+(
+~def1.set(\note, nil, \dur, nil, \stepsPerOctave, nil, \octave, nil);
+)
+
+~mod1.play;
+~mod1.free;
+~def1.play;
+~def1.stop;
 
 //alter the state of the synth def with .set
 ~mod1.set(\octave, Pseq((0..4).mirror1,inf).asStream);
@@ -141,8 +166,8 @@ oc = Pseq((0..4).mirror1,inf);
 
 //free the synths from the server when done
 (
-~def1.free(2);
-~mod1.free(5);
+~def1.free;
+~mod1.free;
 )
 
 // clear proxyspace
@@ -152,7 +177,7 @@ p.clear;
 (
 
 // Modular voice 1 initial values
-~mod1 = Pmono(\dcev,
+~mod1 = Pmono(\sinOut,
 	\ch,3,\ampCh,4, // set your cv channel and your amp channel
 	\trig, 1,
 	\note, Pseq((23..37), inf),
@@ -230,6 +255,6 @@ s.quit;
 
 ////////// UTILITIES ////////////
 s.queryAllNodes;
-s.sendMsg("/n_free", 3000);
+s.sendMsg("/n_free", 1008);
 
 // with <3 from JEA
